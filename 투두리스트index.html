@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>To-Do Planner</title>
+
+<style>
+/* ================= 공통 ================= */
+body {
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+}
+.hidden { display: none; }
+
+/* ================= 메인 화면 ================= */
+#main {
+  background: black;
+  color: white;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+#main h1 {
+  font-size: 32px;
+  margin-bottom: 30px;
+}
+
+.main-btn {
+  border: 2px solid white;
+  background: transparent;
+  color: white;
+  padding: 12px 30px;
+  margin: 8px;
+  border-radius: 20px;
+  cursor: pointer;
+}
+
+/* ================= 플래너 ================= */
+#planner {
+  padding: 20px;
+  max-width: 500px;
+  margin: auto;
+}
+
+.top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.todo-input {
+  display: flex;
+  margin-top: 15px;
+}
+
+.todo-input input {
+  flex: 1;
+  padding: 8px;
+}
+
+ul {
+  list-style: none;
+  padding: 0;
+  margin-top: 15px;
+}
+
+li {
+  padding: 8px;
+  border-bottom: 1px solid #ddd;
+  display: flex;
+  justify-content: space-between;
+  cursor: grab;
+}
+
+li.done {
+  text-decoration: line-through;
+  color: gray;
+}
+
+/* ================= 우선순위 ================= */
+.star {
+  cursor: pointer;
+  color: lightgray;
+}
+
+.star.active {
+  color: gold;
+}
+</style>
+</head>
+
+<body>
+
+<!-- 메인 -->
+<div id="main">
+  <h1>완벽한 계획은 기록에서</h1>
+  <button class="main-btn" onclick="enterPlanner('month')">월 단위 계획</button>
+  <button class="main-btn" onclick="enterPlanner('week')">주 단위 계획</button>
+  <button class="main-btn" onclick="enterPlanner('day')">일 단위 계획</button>
+</div>
+
+<!-- 플래너 -->
+<div id="planner" class="hidden">
+  <div class="top">
+    <h2 id="title"></h2>
+    <button onclick="goHome()">홈</button>
+  </div>
+
+  <div class="todo-input">
+    <input id="todoText" placeholder="할 일을 입력" />
+    <button onclick="addTodo()">추가</button>
+  </div>
+
+  <ul id="todoList"></ul>
+</div>
+
+<script>
+/* 상태 저장 */
+let mode = "";
+let todos = JSON.parse(localStorage.getItem("todos")) || {};
+
+/* 날짜 키 생성 */
+function getDateKey(mode) {
+  const now = new Date();
+  if (mode === "day") return now.toISOString().slice(0, 10);
+  if (mode === "week") {
+    const d = new Date(now);
+    d.setDate(d.getDate() - d.getDay());
+    return d.toISOString().slice(0, 10);
+  }
+  return `${now.getFullYear()}-${now.getMonth() + 1}`;
+}
+
+/* 화면 전환 */
+function enterPlanner(m) {
+  mode = m;
+  document.getElementById("main").classList.add("hidden");
+  document.getElementById("planner").classList.remove("hidden");
+
+  const key = getDateKey(mode);
+  if (!todos[key]) todos[key] = [];
+
+  document.getElementById("title").innerText =
+    mode === "day" ? "오늘" : mode === "week" ? "이번 주" : "이번 달";
+
+  render();
+}
+
+function goHome() {
+  document.getElementById("planner").classList.add("hidden");
+  document.getElementById("main").classList.remove("hidden");
+}
+
+/* 할 일 추가 */
+function addTodo() {
+  const input = document.getElementById("todoText");
+  if (!input.value.trim()) return;
+
+  const key = getDateKey(mode);
+  todos[key].push({ text: input.value, done: false, priority: false });
+  input.value = "";
+  save(); render();
+}
+
+/* 렌더 */
+function render() {
+  const key = getDateKey(mode);
+  const list = document.getElementById("todoList");
+  list.innerHTML = "";
+
+  todos[key].forEach((t, i) => {
+    const li = document.createElement("li");
+    if (t.done) li.classList.add("done");
+
+    li.draggable = true;
+    li.ondragstart = e => e.dataTransfer.setData("i", i);
+    li.ondrop = e => swap(i, e.dataTransfer.getData("i"));
+    li.ondragover = e => e.preventDefault();
+
+    const text = document.createElement("span");
+    text.innerText = t.text;
+    text.onclick = () => toggleDone(i);
+
+    const star = document.createElement("span");
+    star.innerText = "★";
+    star.className = "star" + (t.priority ? " active" : "");
+    star.onclick = () => togglePriority(i);
+
+    const del = document.createElement("button");
+    del.innerText = "삭제";
+    del.onclick = () => removeTodo(i);
+
+    li.append(text, star, del);
+    list.appendChild(li);
+  });
+}
+
+/* 기능 */
+function toggleDone(i) {
+  todos[getDateKey(mode)][i].done ^= true;
+  save(); render();
+}
+
+function togglePriority(i) {
+  todos[getDateKey(mode)][i].priority ^= true;
+  save(); render();
+}
+
+function removeTodo(i) {
+  todos[getDateKey(mode)].splice(i, 1);
+  save(); render();
+}
+
+function swap(to, from) {
+  const key = getDateKey(mode);
+  const item = todos[key].splice(from, 1)[0];
+  todos[key].splice(to, 0, item);
+  save(); render();
+}
+
+function save() {
+  localStorage.setItem("todos", JSON.stringify(todos));
+}
+</script>
+
+</body>
+</html>
