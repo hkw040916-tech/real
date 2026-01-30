@@ -2,17 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
-<title>To-Do Planner</title>
+<title>Day Planner</title>
 
 <style>
-/* ================= 공통 ================= */
+/* ===== 공통 ===== */
 body {
   margin: 0;
   font-family: Arial, Helvetica, sans-serif;
 }
 .hidden { display: none; }
 
-/* ================= 메인 화면 ================= */
+/* ===== 메인 ===== */
 #main {
   background: black;
   color: white;
@@ -22,12 +22,11 @@ body {
   justify-content: center;
   align-items: center;
 }
-
 #main h1 {
   font-size: 32px;
+  font-weight: bold;
   margin-bottom: 30px;
 }
-
 .main-btn {
   border: 2px solid white;
   background: transparent;
@@ -36,81 +35,97 @@ body {
   margin: 8px;
   border-radius: 20px;
   cursor: pointer;
+  font-size: 16px;
 }
 
-/* ================= 플래너 ================= */
+/* ===== 플래너 ===== */
 #planner {
   padding: 20px;
   max-width: 500px;
   margin: auto;
 }
 
+/* 상단 (날짜 이동) */
 .top {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
+/* 입력 */
 .todo-input {
   display: flex;
   margin-top: 15px;
 }
-
 .todo-input input {
   flex: 1;
   padding: 8px;
 }
+.todo-input button {
+  margin-left: 5px;
+}
 
+/* 리스트 */
 ul {
   list-style: none;
   padding: 0;
   margin-top: 15px;
 }
-
 li {
   padding: 8px;
   border-bottom: 1px solid #ddd;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   cursor: grab;
 }
-
 li.done {
   text-decoration: line-through;
   color: gray;
 }
 
-/* ================= 우선순위 ================= */
+/* 우선순위 */
 .star {
   cursor: pointer;
+  font-size: 18px;
   color: lightgray;
 }
-
 .star.active {
   color: gold;
+}
+.controls button {
+  margin-left: 6px;
 }
 </style>
 </head>
 
 <body>
 
-<!-- 메인 -->
+<!-- ===== 메인 화면 ===== -->
 <div id="main">
   <h1>완벽한 계획은 기록에서</h1>
-  <button class="main-btn" onclick="enterPlanner('month')">월 단위 계획</button>
-  <button class="main-btn" onclick="enterPlanner('week')">주 단위 계획</button>
-  <button class="main-btn" onclick="enterPlanner('day')">일 단위 계획</button>
+  <button class="main-btn" onclick="enterPlanner()">오늘 계획</button>
 </div>
 
-<!-- 플래너 -->
+<!-- ===== DAY 플래너 ===== -->
 <div id="planner" class="hidden">
+
   <div class="top">
-    <h2 id="title"></h2>
+    <div class="date-nav">
+      <button onclick="moveDay(-1)">◀</button>
+      <strong id="dateLabel"></strong>
+      <button onclick="moveDay(1)">▶</button>
+    </div>
     <button onclick="goHome()">홈</button>
   </div>
 
   <div class="todo-input">
-    <input id="todoText" placeholder="할 일을 입력" />
+    <input id="todoText" placeholder="오늘 할 일 입력" />
     <button onclick="addTodo()">추가</button>
   </div>
 
@@ -118,34 +133,42 @@ li.done {
 </div>
 
 <script>
-/* 상태 저장 */
-let mode = "";
+/* =====================
+   상태 관리
+   ===================== */
+
+// 현재 보고 있는 날짜 (핵심)
+let currentDate = new Date();
+
+// 모든 할 일 데이터 (날짜별)
 let todos = JSON.parse(localStorage.getItem("todos")) || {};
 
-/* 날짜 키 생성 */
-function getDateKey(mode) {
-  const now = new Date();
-  if (mode === "day") return now.toISOString().slice(0, 10);
-  if (mode === "week") {
-    const d = new Date(now);
-    d.setDate(d.getDate() - d.getDay());
-    return d.toISOString().slice(0, 10);
-  }
-  return `${now.getFullYear()}-${now.getMonth() + 1}`;
+/* =====================
+   날짜 유틸
+   ===================== */
+
+// Date → YYYY-MM-DD
+function dateKey(date) {
+  return date.toISOString().slice(0, 10);
 }
 
-/* 화면 전환 */
-function enterPlanner(m) {
-  mode = m;
+// 화면에 보여줄 날짜 텍스트
+function formatDate(date) {
+  return date.toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    weekday: "short"
+  });
+}
+
+/* =====================
+   화면 전환
+   ===================== */
+
+function enterPlanner() {
   document.getElementById("main").classList.add("hidden");
   document.getElementById("planner").classList.remove("hidden");
-
-  const key = getDateKey(mode);
-  if (!todos[key]) todos[key] = [];
-
-  document.getElementById("title").innerText =
-    mode === "day" ? "오늘" : mode === "week" ? "이번 주" : "이번 달";
-
   render();
 }
 
@@ -154,68 +177,109 @@ function goHome() {
   document.getElementById("main").classList.remove("hidden");
 }
 
-/* 할 일 추가 */
+/* =====================
+   날짜 이동
+   ===================== */
+
+function moveDay(diff) {
+  currentDate.setDate(currentDate.getDate() + diff);
+  render();
+}
+
+/* =====================
+   할 일 추가
+   ===================== */
+
 function addTodo() {
   const input = document.getElementById("todoText");
   if (!input.value.trim()) return;
 
-  const key = getDateKey(mode);
-  todos[key].push({ text: input.value, done: false, priority: false });
+  const key = dateKey(currentDate);
+  if (!todos[key]) todos[key] = [];
+
+  todos[key].push({
+    text: input.value,
+    done: false,
+    priority: false
+  });
+
   input.value = "";
-  save(); render();
+  save();
+  render();
 }
 
-/* 렌더 */
+/* =====================
+   렌더링
+   ===================== */
+
 function render() {
-  const key = getDateKey(mode);
+  const key = dateKey(currentDate);
+  if (!todos[key]) todos[key] = [];
+
+  document.getElementById("dateLabel").innerText = formatDate(currentDate);
+
   const list = document.getElementById("todoList");
   list.innerHTML = "";
 
-  todos[key].forEach((t, i) => {
+  todos[key].forEach((todo, index) => {
     const li = document.createElement("li");
-    if (t.done) li.classList.add("done");
-
     li.draggable = true;
-    li.ondragstart = e => e.dataTransfer.setData("i", i);
-    li.ondrop = e => swap(i, e.dataTransfer.getData("i"));
-    li.ondragover = e => e.preventDefault();
 
-    const text = document.createElement("span");
-    text.innerText = t.text;
-    text.onclick = () => toggleDone(i);
+    li.ondragstart = e => e.dataTransfer.setData("idx", index);
+    li.ondragover = e => e.preventDefault();
+    li.ondrop = e => swap(index, e.dataTransfer.getData("idx"));
+
+    if (todo.done) li.classList.add("done");
+
+    const left = document.createElement("span");
+    left.innerText = todo.text;
+    left.onclick = () => toggleDone(index);
+
+    const right = document.createElement("div");
+    right.className = "controls";
 
     const star = document.createElement("span");
     star.innerText = "★";
-    star.className = "star" + (t.priority ? " active" : "");
-    star.onclick = () => togglePriority(i);
+    star.className = "star" + (todo.priority ? " active" : "");
+    star.onclick = () => togglePriority(index);
 
     const del = document.createElement("button");
     del.innerText = "삭제";
-    del.onclick = () => removeTodo(i);
+    del.onclick = () => removeTodo(index);
 
-    li.append(text, star, del);
+    right.appendChild(star);
+    right.appendChild(del);
+
+    li.appendChild(left);
+    li.appendChild(right);
     list.appendChild(li);
   });
 }
 
-/* 기능 */
+/* =====================
+   기능
+   ===================== */
+
 function toggleDone(i) {
-  todos[getDateKey(mode)][i].done ^= true;
+  const key = dateKey(currentDate);
+  todos[key][i].done = !todos[key][i].done;
   save(); render();
 }
 
 function togglePriority(i) {
-  todos[getDateKey(mode)][i].priority ^= true;
+  const key = dateKey(currentDate);
+  todos[key][i].priority = !todos[key][i].priority;
   save(); render();
 }
 
 function removeTodo(i) {
-  todos[getDateKey(mode)].splice(i, 1);
+  const key = dateKey(currentDate);
+  todos[key].splice(i, 1);
   save(); render();
 }
 
 function swap(to, from) {
-  const key = getDateKey(mode);
+  const key = dateKey(currentDate);
   const item = todos[key].splice(from, 1)[0];
   todos[key].splice(to, 0, item);
   save(); render();
@@ -228,3 +292,4 @@ function save() {
 
 </body>
 </html>
+
